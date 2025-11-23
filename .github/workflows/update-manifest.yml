@@ -1,0 +1,45 @@
+name: Update Julia manifest dependencies
+
+on:
+  workflow_call:
+    inputs:
+      julia-version:
+        required: false
+        type: string
+        default: '1'
+      runs-on:
+        required: false
+        type: string
+        default: 'ubuntu-slim'
+    secrets:
+      personal_access_token:
+        required: true
+
+jobs:
+  update-manifest:
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ inputs.julia-version }}
+          arch: ${{ runner.arch }}
+      - name: Update Julia dependencies
+        env:
+          JULIA_PKG_PRECOMPILE_AUTO: '0'
+        run: julia --project=@. --color=yes -e 'using Pkg; Pkg.status(; outdated=true); Pkg.update()'
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          title: Julia Dependency Update
+          token: ${{ secrets.personal_access_token }}
+      - name: Enable auto-merge
+        run: gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.personal_access_token }}
